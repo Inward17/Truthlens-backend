@@ -1,0 +1,43 @@
+steps:
+# 1. Build the container image
+# The 'backend' at the end tells Docker to look inside that folder
+# for the Dockerfile, which fixes your "file not found" error.
+- name: 'gcr.io/cloud-builders/docker'
+  args:
+    - 'build'
+    - '-t'
+    - 'gcr.io/$PROJECT_ID/truthlens-backend:$COMMIT_SHA'
+    - 'backend'  # <-- This is the fix for "Dockerfile not found"
+  id: Build
+
+# 2. Push the container image to Artifact Registry
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'gcr.io/$PROJECT_ID/truthlens-backend:$COMMIT_SHA']
+  waitFor: ['Build']
+  id: Push
+
+# 3. Deploy to Cloud Run with all variables and secrets
+# This runs the same deploy command we built for your local terminal.
+# The Cloud Build service account will execute this.
+- name: 'gcr.io/google/cloud-sdk'
+  entrypoint: gcloud
+  args:
+    - 'run'
+    - 'deploy'
+    - 'truthlens-backend' # The name of your Cloud Run service
+    - '--image=gcr.io/$PROJECT_ID/truthlens-backend:$COMMIT_SHA'
+    - '--region=us-central1' # <-- Change if needed
+    - '--platform=managed'
+    - '--allow-unauthenticated'
+    # This combines all your variables from the local deploy command
+    - '--set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,LOCATION=us-central1,CORS_ORIGINS=*,GOOGLE_APPLICATION_CREDENTIALS=/app/service-account-key.json'
+    # This references your secrets from Secret Manager
+    - '--set-secrets=GEMINI_API_KEY=GEMINI_API_KEY:latest,/app/service-account-key.json=SERVICE_ACCOUNT_KEY_FILE:latest'
+  waitFor: ['Push']
+
+# Specify the image to be built
+images:
+- 'gcr.io/$PROJECT_ID/truthlens-backend:$COMMIT_SHA'
+
+# Set a longer timeout for the build
+timeout: '1600s'
