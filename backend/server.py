@@ -466,10 +466,12 @@ async def get_current_user(creds: HTTPAuthorizationCredentials = Depends(securit
 
 
 
-@api_router.get("/auth/me", summary="Get current user info")
+
+@api_router.get("/auth/me", response_model=User, summary="Get current user info")
 async def get_current_user_info(user: User = Depends(get_current_user)):
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    """
+    Returns the current user's details if their token is valid.
+    """
     return user
 
 
